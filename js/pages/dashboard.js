@@ -26,7 +26,8 @@ export const dashboard = {
     // TODO: 2. Cargar los personajes iniciales llamando a loadCharacters()
     await this.loadCharacters();
     this.setupEventListeners();
-    // TODO: 3. Renderizar los favoritos iniciales (si existen en el local storage) llamando a renderFavorites()
+    // Pintamos los favoritos guardados en LocalStorage al abrir la página.
+    this.renderFavorites();
   },
 
   /**
@@ -98,13 +99,23 @@ export const dashboard = {
    * Dibuja la cuadrícula de personajes en el DOM.
    */
   renderGrid() {
-    // TODO: 1. Limpiar las tarjetas de personajes anteriores en la grilla (puedes borrar todos los elementos con clase '.character-card').
-    const cards = this.elements.grid.querySelectorAll("character-card");
-    cards.forEach((card) => card.remove());
+    // Buscamos las tarjetas viejas usando el punto ('.') para seleccionar por clase.
+    const cards = this.elements.grid.querySelectorAll(".character-card");
+    // Recorremos ese conjunto de tarjetas antiguas...
+    cards.forEach(
+      // ...y eliminamos cada una para no duplicar personajes al volver a pintar.
+      (card) => card.remove(),
+    );
+
+    // Recorremos cada personaje que hay en el estado actual.
     store.state.characters.forEach((char) => {
+      // Preguntamos al store si este personaje ya está marcado como favorito.
       const isFav = store.isFavorite(char.id);
+      // Creamos un contenedor <div> vacío para la tarjeta.
       const card = document.createElement("div");
+      // Le asignamos la clase CSS que da el estilo de tarjeta.
       card.className = "character-card";
+      // Rellenamos la tarjeta con su HTML: imagen, nombre, estado y botón de favorito.
       card.innerHTML = `
                 <div class="card-image-wrapper">
                     <img src="${char.image}" alt="${char.name}" loading="lazy">
@@ -122,33 +133,80 @@ export const dashboard = {
                 </div>  
             `;
 
-      //  card.querySelector(".fav-button").addEventListener("click", (evento) => {
-      // agregar un evento
-      // });
+      // Buscamos dentro de la tarjeta el botón con clase 'fav-btn'.
+      const favBtn = card.querySelector(".fav-btn");
+      // Le enganchamos un escuchador para reaccionar cuando el usuario haga clic.
+      favBtn.addEventListener("click", () => {
+        // Añadimos o quitamos el personaje del store (también se guarda en LocalStorage).
+        store.toggleFavorite(char);
+        // Volvemos a pintar la grilla para actualizar el estado del botón pulsado.
+        this.renderGrid();
+        // Volvemos a pintar el sidebar para mostrar u ocultar el favorito.
+        this.renderFavorites();
+      });
 
+      // Insertamos la tarjeta terminada dentro de la grilla del DOM.
       this.elements.grid.appendChild(card);
-      this.showLoader(false);
     });
+
+    // Ocultamos el spinner una sola vez, después de pintar todas las tarjetas.
+    this.showLoader(false);
+    // Pedimos a Lucide que convierta los <i data-lucide> de las tarjetas en iconos SVG.
+    window.lucide?.createIcons();
   },
 
   /**
    * Dibuja la lista de personajes favoritos en la barra lateral.
    */
   renderFavorites() {
+    // Guardamos en una variable corta la referencia al contenedor del sidebar.
     const { favoritesList } = this.elements;
 
-    // TODO: 1. Si la lista store.state.favorites está vacía:
-    //          - Inyectar el HTML para estado vacío (puedes ver la plantilla de vacíos en index.html o usar un div simple con clase 'empty-favorites').
-    //          - Terminar la ejecución de la función.
-    //
-    // TODO: 2. Si hay favoritos, vaciar favoritesList.innerHTML.
-    // TODO: 3. Recorrer cada favorito de store.state.favorites.
-    // TODO: 4. Crear un elemento div con clase 'fav-item' e inyectarle su estructura HTML (usa recursos/resursos.md como guía).
-    // TODO: 5. Agregar un escuchador de eventos click en el botón de eliminar favorito (.remove-fav):
-    //          - Aquel que llama a store.toggleFavorite(favorito) para quitarlo.
-    //          - Llamar de nuevo a renderFavorites() y renderGrid() para que toda la interfaz se actualice.
-    // TODO: 6. Añadir el elemento creado a favoritesList.
-    // TODO: 7. Llamar a lucide.createIcons() para pintar el icono de cierre.
+    // Si no hay favoritos, mostramos el mensaje de estado vacío...
+    if (store.state.favorites.length === 0) {
+      // ...y terminamos la función para no seguir dibujando nada.
+      favoritesList.innerHTML = `<div class="empty-favorites"><p>No favorites yet</p></div>`;
+      return;
+    }
+
+    // Si hay favoritos, limpiamos primero el contenido anterior del sidebar.
+    favoritesList.innerHTML = "";
+
+    // Recorremos uno por uno los favoritos guardados en el store.
+    store.state.favorites.forEach((fav) => {
+      // Creamos el contenedor <div> que representará una fila del sidebar.
+      const item = document.createElement("div");
+      // Le damos la clase 'fav-item' para aplicarle los estilos de la fila.
+      item.className = "fav-item";
+      // Rellenamos la fila con la miniatura, el nombre y el botón para quitarlo.
+      item.innerHTML = `
+        <img src="${fav.image}" alt="${fav.name}">
+        <div class="fav-item-info">
+          <div class="fav-item-name">${fav.name}</div>
+        </div>
+        <button class="remove-fav" aria-label="Remove ${fav.name}">
+          <i data-lucide="x"></i>
+        </button>
+      `;
+
+      // Buscamos el botón de eliminar dentro de la fila que acabamos de crear.
+      const botonEliminar = item.querySelector(".remove-fav");
+      // Escuchamos el clic para permitir quitar el favorito desde el sidebar.
+      botonEliminar.addEventListener("click", () => {
+        // Quitamos el personaje del store (el cambio se persiste en LocalStorage).
+        store.toggleFavorite(fav);
+        // Pintamos otra vez el sidebar para que la fila desaparezca.
+        this.renderFavorites();
+        // Pintamos otra vez la grilla para desmarcar el botón de esa tarjeta.
+        this.renderGrid();
+      });
+
+      // Añadimos la fila terminada al contenedor de favoritos del sidebar.
+      favoritesList.appendChild(item);
+    });
+
+    // Convertimos el <i data-lucide="x"> en el icono de cierre usando Lucide.
+    window.lucide?.createIcons();
   },
 
   /**
